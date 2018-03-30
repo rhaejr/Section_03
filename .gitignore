@@ -7,8 +7,10 @@
 */Intermediate
 */Saved
 BuildingEscape/Content/StarterContent/
+*/ipch
 
 ######################
 # VS Generated Files #
 ######################
 *.VC.db
+*.ipch
