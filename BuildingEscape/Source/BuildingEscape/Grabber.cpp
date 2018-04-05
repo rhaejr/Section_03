@@ -3,6 +3,8 @@
 #include "Grabber.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
+#include "Components/PrimitiveComponent.h"
+
 #include "DrawDebugHelpers.h"
 
 
@@ -23,6 +25,60 @@ UGrabber::UGrabber()
 void UGrabber::BeginPlay()
 {
 	Super::BeginPlay();
+	FindPhysicsHandleComponent();
+	SetupInputComponent();
+}
+
+void UGrabber::Grab()
+{
+	UE_LOG(LogTemp, Warning, TEXT("Grab Pressed"));
+	/// Try and reach any actors with physics body collison channel set
+	GetFirstPhysicsBodyInReach();
+
+	/// If we hit something then attach a physics handle
+	/// attach physics handle
+	auto HitResult = GetFirstPhysicsBodyInReach();
+	auto ComponentToGrab = HitResult.GetComponent();
+	auto ActorHit = HitResult.GetActor();
+	if (ActorHit)
+	{
+		PhysicsHandle->GrabComponentAtLocationWithRotation(
+			ComponentToGrab,
+			NAME_None,
+			ComponentToGrab->GetOwner()->GetActorLocation(),
+			GetOwner()->GetActorRotation()
+		);
+	}
+}
+
+void UGrabber::Release()
+{
+	UE_LOG(LogTemp, Warning, TEXT("Grab Released"));
+}
+
+// Called every frame
+void UGrabber::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	/// Get player view point this tick
+	FVector PlayerViewPointLocation;
+	FRotator PlayerViewPointRotation;
+	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(OUT PlayerViewPointLocation, OUT PlayerViewPointRotation);
+
+	//UE_LOG(LogTemp, Warning, TEXT("Location: %s , Rotaion: %s!"), *PlayerViewPointLocation.ToString(), *PlayerViewPointRotation.ToString());
+	FVector LineTraceEnd = PlayerViewPointLocation + PlayerViewPointRotation.Vector() * Reach;
+
+	/// if the physics handle is attached
+	if (PhysicsHandle->GrabbedComponent)
+	{
+		/// move the object that we are holding
+		PhysicsHandle->SetTargetLocation(LineTraceEnd);
+	}
+		
+	
+}
+void UGrabber::FindPhysicsHandleComponent()
+{
 
 	PhysicsHandle = GetOwner()->FindComponentByClass<UPhysicsHandleComponent>();
 	if (PhysicsHandle)
@@ -33,6 +89,10 @@ void UGrabber::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("%s missing physics handle component"), *GetOwner()->GetName());
 	}
+}
+
+void UGrabber::SetupInputComponent()
+{
 	InputComponent = GetOwner()->FindComponentByClass<UInputComponent>();
 	if (InputComponent)
 	{
@@ -47,26 +107,13 @@ void UGrabber::BeginPlay()
 	}
 }
 
-void UGrabber::Grab()
+const FHitResult UGrabber::GetFirstPhysicsBodyInReach()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Grab Pressed"));
-}
-
-void UGrabber::Release()
-{
-	UE_LOG(LogTemp, Warning, TEXT("Grab Released"));
-}
-
-// Called every frame
-void UGrabber::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	/// Get player view point this tick
 	FVector PlayerViewPointLocation;
 	FRotator PlayerViewPointRotation;
-	
-	/// Get player view point this tick
 	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(OUT PlayerViewPointLocation, OUT PlayerViewPointRotation);
-	
+
 	//UE_LOG(LogTemp, Warning, TEXT("Location: %s , Rotaion: %s!"), *PlayerViewPointLocation.ToString(), *PlayerViewPointRotation.ToString());
 	FVector LineTraceEnd = PlayerViewPointLocation + PlayerViewPointRotation.Vector() * Reach;
 	//DrawDebugLine(GetWorld(), PlayerViewPointLocation, LineTraceEnd, FColor(255, 0, 0), false, 0.f, 0.f,10.f);
@@ -76,10 +123,10 @@ void UGrabber::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 	/// Ray-cast out to reach distance
 	FHitResult Hit;
 	GetWorld()->LineTraceSingleByObjectType(
-		OUT Hit, 
-		PlayerViewPointLocation, 
+		OUT Hit,
+		PlayerViewPointLocation,
 		LineTraceEnd,
-		FCollisionObjectQueryParams(ECollisionChannel::ECC_PhysicsBody),TraceParameters);
+		FCollisionObjectQueryParams(ECollisionChannel::ECC_PhysicsBody), TraceParameters);
 
 	/// See what it hit
 	AActor* ActorHit = Hit.GetActor();
@@ -88,5 +135,5 @@ void UGrabber::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 		UE_LOG(LogTemp, Warning, TEXT("Hit: %s"), *(ActorHit->GetName()));
 
 	}
+	return Hit;
 }
-
